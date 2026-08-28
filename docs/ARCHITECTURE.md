@@ -66,6 +66,7 @@ personal-llm-wiki/
 │       ├── errors.ts
 │       ├── frontmatter.ts
 │       ├── model.ts
+│       ├── query.ts
 │       ├── search.ts
 │       └── vault.ts
 └── tests/
@@ -83,6 +84,7 @@ Core:
 - discover Markdown while skipping hidden directories and symlinks;
 - extract a tolerant subset of frontmatter without enforcing a schema;
 - infer note kind and expose optional metadata;
+- normalize and tokenize queries independently from ranking;
 - provide deterministic doctor, search, and show operations.
 
 CLI:
@@ -143,7 +145,36 @@ Writable capability uses `access(W_OK)` only. It creates no probe file. Absence 
 
 ### `wiki search <query>`
 
-Search scans Markdown directly on every invocation. Text is Unicode NFKC-normalized and lowercased, then split into Unicode letter/number tokens. Phrase and token matches contribute these fixed scores:
+Search scans Markdown directly on every invocation. Query processing is separate from scoring:
+
+```text
+raw query
+   ↓
+NFKC normalization and lowercase
+   ↓
+coarse Unicode letter/number terms
+   ↓
+bounded Japanese word segmentation
+   ↓
+existing deterministic ranking
+```
+
+`query.ts` exports the normalized phrase and terms for direct testing and debugging. The normal CLI output is unchanged.
+
+Tokenization rules:
+
+- preserve every coarse term produced by the previous whitespace/punctuation behavior;
+- use `Intl.Segmenter("ja", { granularity: "word" })` only for a single continuous term containing Hiragana, or for a mixed Japanese/Latin term;
+- preserve already whitespace-delimited Japanese terms without further segmentation;
+- preserve pure Kanji/Katakana compound terms as whole terms;
+- accept only `isWordLike` segments;
+- remove empty terms and duplicates while preserving first-seen order;
+- retain meaningful one-character terms such as `色`, `形`, `声`, and `心`;
+- filter only the exact minimal particle set `の は が を に へ と で や も か ね よ`.
+
+The particle rule reduces broad grammatical matches without a stopword dictionary. Its regression risk is that a note about one of those characters as a linguistic term cannot be searched using that term alone. This tradeoff remains explicit and test-covered rather than expanding into general Japanese-language heuristics.
+
+Phrase and token matches contribute the same fixed scores as before Phase 1.7:
 
 | Match | Score |
 | --- | ---: |
@@ -177,13 +208,17 @@ Current coverage includes:
 - source, knowledge, asset, daily, and unknown discovery;
 - tolerant frontmatter extraction;
 - deterministic English and Japanese lexical retrieval;
+- continuous Japanese, whitespace Japanese, English, and mixed-script tokenization;
+- duplicate, punctuation, one-character, and minimal-particle behavior;
+- the seven Phase 1.5/1.6 Natural and Diagnostic query pairs;
+- exact, partial, Japanese multi-term, and negative-query regressions;
 - promotion and provenance display;
 - show by relative path and optional ID;
 - Vault traversal rejection;
 - hidden-directory exclusion;
 - content snapshot equality before and after all three CLI operations.
 
-The real empty Vault was smoke-tested with `doctor` and `search` only. Counts remained six directories and zero files before and after. Recall quality on personal knowledge is not yet evaluated because no human-authored dogfood notes exist.
+The real five-note Source corpus was evaluated with the frozen Phase 1.5/1.6 corpus. Phase 1.7 moved Natural Japanese target retrieval from 0/7 to 7/7 within Top 3 while keeping all seven Diagnostic targets at Rank 1. Exact, partial, Japanese multi-term, and negative-query baseline behavior remained stable. Vault snapshots were unchanged.
 
 ## 9. Important decisions
 
@@ -221,6 +256,13 @@ The real empty Vault was smoke-tested with `doctor` and `search` only. Counts re
 - **Alternative considered:** Require a complete frontmatter schema or full YAML parser.
 - **Why not now:** Strictness increases capture friction; rewriting is unnecessary for read-only retrieval.
 - **Revisit trigger:** Real notes use YAML features the extractor cannot display correctly, or a reviewed write workflow needs safe round-tripping.
+
+### Decision: Segment only bounded natural or mixed-script query terms
+
+- **Reason:** Seven repeated real-Vault failures showed that continuous natural Japanese produced no candidates, while equivalent delimited terms returned every target at Rank 1.
+- **Alternative considered:** Segment every Japanese coarse term.
+- **Why not now:** The first experiment caused the negative query to match `量子物理学` through `量子` and fragmented pure compound queries into unrelated candidates. Bounded segmentation restored those baselines without changing ranking.
+- **Revisit trigger:** Real queries without Hiragana repeatedly miss, or the current minimal particle/filter boundary creates measurable false negatives.
 
 ### Decision: Do not create Skills during Phase 1
 

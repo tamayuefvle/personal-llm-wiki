@@ -1,15 +1,8 @@
 import { WikiError } from "./errors.js";
 import { flattenFrontmatter } from "./frontmatter.js";
 import type { SearchField, SearchResult, WikiNote } from "./model.js";
+import { normalizeSearchText, tokenizeQuery } from "./query.js";
 import { readAllNotes } from "./vault.js";
-
-function normalize(value: string): string {
-  return value.normalize("NFKC").toLocaleLowerCase("en-US");
-}
-
-function queryTokens(query: string): string[] {
-  return [...new Set(normalize(query).match(/[\p{L}\p{N}]+/gu) ?? [])];
-}
 
 function compareResults(left: SearchResult, right: SearchResult): number {
   if (left.score !== right.score) {
@@ -32,7 +25,7 @@ function bestSnippet(note: WikiNote, phrase: string, tokens: string[]): string {
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
-  const phraseLine = lines.find((line) => normalize(line).includes(phrase));
+  const phraseLine = lines.find((line) => normalizeSearchText(line).includes(phrase));
   if (phraseLine) {
     return clipped(phraseLine);
   }
@@ -40,7 +33,7 @@ function bestSnippet(note: WikiNote, phrase: string, tokens: string[]): string {
   let bestLine = "";
   let bestMatches = 0;
   for (const line of lines) {
-    const normalized = normalize(line);
+    const normalized = normalizeSearchText(line);
     const matches = tokens.filter((token) => normalized.includes(token)).length;
     if (matches > bestMatches) {
       bestLine = line;
@@ -51,10 +44,10 @@ function bestSnippet(note: WikiNote, phrase: string, tokens: string[]): string {
 }
 
 function scoreNote(note: WikiNote, phrase: string, tokens: string[]): SearchResult | undefined {
-  const title = normalize(note.title);
-  const relativePath = normalize(note.relativePath);
-  const metadata = normalize(flattenFrontmatter(note.frontmatter));
-  const body = normalize(note.body);
+  const title = normalizeSearchText(note.title);
+  const relativePath = normalizeSearchText(note.relativePath);
+  const metadata = normalizeSearchText(flattenFrontmatter(note.frontmatter));
+  const body = normalizeSearchText(note.body);
   const fields = new Set<SearchField>();
   let score = 0;
 
@@ -119,14 +112,13 @@ function scoreNote(note: WikiNote, phrase: string, tokens: string[]): SearchResu
 }
 
 export async function search(vaultPath: string, query: string): Promise<SearchResult[]> {
-  const phrase = normalize(query).trim();
-  const tokens = queryTokens(query);
-  if (!phrase || tokens.length === 0) {
+  const tokenized = tokenizeQuery(query);
+  if (!tokenized.phrase || tokenized.terms.length === 0) {
     throw new WikiError("Search query must contain text or numbers.", "QUERY_REQUIRED", 2);
   }
 
   const results = (await readAllNotes(vaultPath))
-    .map((note) => scoreNote(note, phrase, tokens))
+    .map((note) => scoreNote(note, tokenized.phrase, tokenized.terms))
     .filter((result): result is SearchResult => Boolean(result));
   return results.sort(compareResults);
 }
