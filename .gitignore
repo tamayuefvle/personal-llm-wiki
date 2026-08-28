@@ -1,0 +1,18 @@
+# Local configuration
+.env
+.env.*
+!.env.example
+
+# Node.js / TypeScript outputs (when the CLI is implemented)
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Rebuildable local runtime data
+.wiki-cache/
+
+# Logs and operating-system noise
+*.log
+.DS_Store
+Thumbs.db
