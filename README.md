@@ -4,7 +4,11 @@ Personal LLM Wiki は、Markdown を永続的な Source of Truth とする、loc
 
 ## Current status
 
-Phase 1 の read-only recall vertical slice を実装済みです。
+Phase 1.7 の日本語検索改善まで実装・コミット済みです（`9103584`）。
+
+2026-09-15に、5件から37件に増えた実Vaultで再評価しました。既存Sourceを探す自然文7問のうち、期待ノートが上位3件に入ったのは4件（前回7件）でした。単語を区切った診断用質問は7問とも1位を維持しています。次は順位が下がった質問の一致語と点数を調べます。
+
+詳細: [最新の再評価](docs/dogfood/2026-09-15-recall-reevaluation.md) / [進捗と次の作業](docs/ROADMAP.md)
 
 ```text
 wiki doctor
