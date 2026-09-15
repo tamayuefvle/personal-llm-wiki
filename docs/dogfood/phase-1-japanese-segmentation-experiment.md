@@ -205,7 +205,11 @@ files modified: 0
 files removed: 0
 ```
 
-## Recommended next minimal step
+## Closure and follow-up
+
+Accepted and committed as `9103584da571f194a71bdd060d881ec4627cbe35`. Phase 1.7 is closed. The historical results above remain bounded to the five-note corpus. See the [2026-09-15 re-evaluation](2026-09-15-recall-reevaluation.md) for current results on 37 notes (Natural Top 3: 4/7; Diagnostic Rank 1: 7/7).
+
+## Recommended next minimal step (at experiment time; completed)
 
 Review and accept or reject this bounded segmentation change as a unit. If accepted, commit the tokenizer, tests, Architecture update, and this experiment record together. Then perform another read-only dogfood round as the real corpus grows; do not change ranking or add a new capability yet.
 
